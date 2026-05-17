@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>♔ Chess Game ♚</h1>
+        
+        <div class="game-info">
+            <div class="turn-indicator">
+                <span id="currentPlayer">White</span> to move
+            </div>
+            <div class="status" id="gameStatus"></div>
+        </div>
+
+        <div class="board" id="board"></div>
+
+        <div class="controls">
+            <button onclick="resetGame()" class="btn">New Game</button>
+            <button onclick="undoMove()" class="btn" id="undoBtn" disabled>Undo Move</button>
+        </div>
+
+        <div class="move-history">
+            <h3>Move History</h3>
+            <div id="moveList" class="move-list"></div>
+        </div>
+    </div>
+
+    <script src="chess.js"></script>
+    <script>
+        let game = new Chess();
+        let selectedSquare = null;
+
+        function initializeBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    const squareId = String.fromCharCode(97 + col) + (8 - row);
+                    square.id = squareId;
+                    square.className = 'square';
+                    
+                    if ((row + col) % 2 === 0) {
+                        square.classList.add('light');
+                    } else {
+                        square.classList.add('dark');
+                    }
+                    
+                    square.addEventListener('click', () => handleSquareClick(squareId));
+                    
+                    const piece = game.getPieceAt(squareId);
+                    if (piece) {
+                        square.textContent = piece.symbol;
+                        square.classList.add(piece.color);
+                    }
+                    
+                    board.appendChild(square);
+                }
+            }
+            
+            updateGameStatus();
+        }
+
+        function handleSquareClick(squareId) {
+            if (game.gameOver) {
+                return;
+            }
+
+            const piece = game.getPieceAt(squareId);
+
+            if (selectedSquare === null) {
+                if (piece && piece.color === game.currentPlayer) {
+                    selectedSquare = squareId;
+                    highlightValidMoves(squareId);
+                    document.getElementById(squareId).classList.add('selected');
+                }
+            } else {
+                if (selectedSquare === squareId) {
+                    clearHighlights();
+                    selectedSquare = null;
+                } else if (piece && piece.color === game.currentPlayer) {
+                    clearHighlights();
+                    selectedSquare = squareId;
+                    highlightValidMoves(squareId);
+                    document.getElementById(squareId).classList.add('selected');
+                } else {
+                    const moved = game.movePiece(selectedSquare, squareId);
+                    if (moved) {
+                        clearHighlights();
+                        selectedSquare = null;
+                        renderBoard();
+                        updateGameStatus();
+                    }
+                }
+            }
+        }
+
+        function highlightValidMoves(squareId) {
+            const validMoves = game.getValidMoves(squareId);
+            validMoves.forEach(move => {
+                document.getElementById(move).classList.add('valid-move');
+            });
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.square').forEach(sq => {
+                sq.classList.remove('selected', 'valid-move');
+            });
+        }
+
+        function renderBoard() {
+            document.querySelectorAll('.square').forEach(square => {
+                square.textContent = '';
+                square.classList.remove('white', 'black');
+            });
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const squareId = String.fromCharCode(97 + col) + (8 - row);
+                    const piece = game.getPieceAt(squareId);
+                    const square = document.getElementById(squareId);
+                    
+                    if (piece) {
+                        square.textContent = piece.symbol;
+                        square.classList.add(piece.color);
+                    }
+                }
+            }
+        }
+
+        function updateGameStatus() {
+            const statusEl = document.getElementById('gameStatus');
+            const playerEl = document.getElementById('currentPlayer');
+            
+            playerEl.textContent = game.currentPlayer === 'white' ? 'White' : 'Black';
+            
+            if (game.isCheckmate()) {
+                statusEl.textContent = '♔ Checkmate! ' + (game.currentPlayer === 'white' ? 'Black' : 'White') + ' wins!';
+                statusEl.classList.add('checkmate');
+                game.gameOver = true;
+            } else if (game.isStalemate()) {
+                statusEl.textContent = '♞ Stalemate! Game is a draw.';
+                statusEl.classList.add('stalemate');
+                game.gameOver = true;
+            } else if (game.isInCheck()) {
+                statusEl.textContent = '⚠️ Check!';
+                statusEl.classList.add('check');
+            } else {
+                statusEl.textContent = '';
+                statusEl.classList.remove('check', 'checkmate', 'stalemate');
+            }
+
+            document.getElementById('undoBtn').disabled = game.moveHistory.length === 0;
+            updateMoveHistory();
+        }
+
+        function updateMoveHistory() {
+            const moveList = document.getElementById('moveList');
+            moveList.innerHTML = '';
+            
+            for (let i = 0; i < game.moveHistory.length; i += 2) {
+                const moveNum = Math.floor(i / 2) + 1;
+                const whiteMove = game.moveHistory[i];
+                const blackMove = game.moveHistory[i + 1] || '';
+                
+                const moveEntry = document.createElement('div');
+                moveEntry.className = 'move-entry';
+                moveEntry.textContent = `${moveNum}. ${whiteMove} ${blackMove}`;
+                moveList.appendChild(moveEntry);
+            }
+            
+            moveList.scrollTop = moveList.scrollHeight;
+        }
+
+        function resetGame() {
+            game = new Chess();
+            selectedSquare = null;
+            clearHighlights();
+            initializeBoard();
+        }
+
+        function undoMove() {
+            if (game.moveHistory.length > 0) {
+                game.undoMove();
+                selectedSquare = null;
+                clearHighlights();
+                renderBoard();
+                updateGameStatus();
+            }
+        }
+
+        initializeBoard();
+    </script>
+</body>
+</html>
