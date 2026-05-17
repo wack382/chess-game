@@ -30,6 +30,7 @@ class Piece {
 class Chess {
     constructor() {
         this.board = this.initializeBoard();
+        this.boardHistory = [JSON.parse(JSON.stringify(this.board))];
         this.currentPlayer = 'white';
         this.moveHistory = [];
         this.gameOver = false;
@@ -301,6 +302,8 @@ class Chess {
         const validMoves = this.getValidMoves(from);
         if (!validMoves.includes(to)) return false;
 
+        let moveNotation = '';
+
         // Handle castling
         if (piece.type === 'king') {
             if (piece.color === 'white') {
@@ -310,15 +313,15 @@ class Chess {
                     const rook = this.getPieceAt('h1');
                     this.board['f1'] = rook;
                     delete this.board['h1'];
-                    this.moveHistory.push('O-O');
+                    moveNotation = 'O-O';
                 } else if (from === 'e1' && to === 'c1') {
                     // Queen-side castling
                     const rook = this.getPieceAt('a1');
                     this.board['d1'] = rook;
                     delete this.board['a1'];
-                    this.moveHistory.push('O-O-O');
+                    moveNotation = 'O-O-O';
                 } else {
-                    this.moveHistory.push(this.getMoveNotation(from, to));
+                    moveNotation = this.getMoveNotation(from, to);
                 }
             } else {
                 this.blackKingMoved = true;
@@ -327,11 +330,15 @@ class Chess {
                     const rook = this.getPieceAt('h8');
                     this.board['f8'] = rook;
                     delete this.board['h8'];
+                    moveNotation = 'O-O';
                 } else if (from === 'e8' && to === 'c8') {
                     // Queen-side castling
                     const rook = this.getPieceAt('a8');
                     this.board['d8'] = rook;
                     delete this.board['a8'];
+                    moveNotation = 'O-O-O';
+                } else {
+                    moveNotation = this.getMoveNotation(from, to);
                 }
             }
         }
@@ -353,8 +360,11 @@ class Chess {
                 (piece.color === 'black' && parseInt(to[1]) === 1)) {
                 this.board[to] = new Piece('queen', piece.color);
                 delete this.board[from];
-                this.moveHistory.push(this.getMoveNotation(from, to) + '=Q');
+                moveNotation = this.getMoveNotation(from, to) + '=Q';
+                this.moveHistory.push(moveNotation);
+                this.boardHistory.push(JSON.parse(JSON.stringify(this.board)));
                 this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+                this.lastMove = { from, to };
                 return true;
             }
         }
@@ -363,10 +373,13 @@ class Chess {
         this.board[to] = piece;
         delete this.board[from];
 
-        if (!this.moveHistory[this.moveHistory.length - 1]?.includes('O-O')) {
-            this.moveHistory.push(this.getMoveNotation(from, to));
+        // Add move notation if not already set (for non-castling moves)
+        if (!moveNotation) {
+            moveNotation = this.getMoveNotation(from, to);
         }
 
+        this.moveHistory.push(moveNotation);
+        this.boardHistory.push(JSON.parse(JSON.stringify(this.board)));
         this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
         this.lastMove = { from, to };
         return true;
@@ -392,10 +405,31 @@ class Chess {
     undoMove() {
         if (this.moveHistory.length === 0) return;
 
-        // This is a simplified undo - a full implementation would track board state
+        // Remove the last move from history
         this.moveHistory.pop();
+        
+        // Restore the previous board state
+        this.boardHistory.pop();
+        this.board = JSON.parse(JSON.stringify(this.boardHistory[this.boardHistory.length - 1]));
+        
+        // Switch current player back
         this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+        
+        // Reset game over status
         this.gameOver = false;
+        
+        // Reset castling rights (simplified - would need full state tracking for complete correctness)
+        this.resetCastlingRights();
+    }
+
+    resetCastlingRights() {
+        // Check if kings/rooks are still in original positions
+        this.whiteKingMoved = !this.getPieceAt('e1') || this.getPieceAt('e1').type !== 'king';
+        this.blackKingMoved = !this.getPieceAt('e8') || this.getPieceAt('e8').type !== 'king';
+        this.whiteRookKingMoved = !this.getPieceAt('h1') || this.getPieceAt('h1').type !== 'rook';
+        this.whiteRookQueenMoved = !this.getPieceAt('a1') || this.getPieceAt('a1').type !== 'rook';
+        this.blackRookKingMoved = !this.getPieceAt('h8') || this.getPieceAt('h8').type !== 'rook';
+        this.blackRookQueenMoved = !this.getPieceAt('a8') || this.getPieceAt('a8').type !== 'rook';
     }
 
     isInCheck() {
